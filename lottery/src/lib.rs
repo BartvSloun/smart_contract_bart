@@ -8,6 +8,7 @@ extern crate pbc_contract_common;
 use pbc_contract_common::address::Address;
 use pbc_contract_common::context::ContractContext;
 use pbc_contract_common::sorted_vec_map::SortedVecSet;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// The state of the lottery, which is persisted on-chain.
 #[state]
@@ -59,11 +60,25 @@ pub fn enter(ctx: ContractContext, mut state: LotteryState) -> LotteryState {
 /// The winner of the lottery.
 ///
 #[action(shortname = 0x02)]
-pub fn pickWinner(ctx: ContractContext, mut state: LotteryState) -> Option<Address> {
+pub fn pick_winner(ctx: ContractContext, mut state: LotteryState) -> Option<Address> {
+    // Get the current system time
+    let current_time = SystemTime::now();
+
+    // Convert system time to UNIX timestamp
+    let timestamp = match current_time.duration_since(UNIX_EPOCH) {
+        Ok(duration) => duration.as_secs(),
+        Err(_) => return None, // Handle error if system time is before UNIX epoch
+    };
+
+    // Use the timestamp to determine the winner
     if state.participants.len() > 0 {
-        let index = (ctx.block_timestamp % state.participants.len() as u64) as usize;
-        let winner = state.participants.get(index).cloned();
-        state.participants.clear(); // Reset participants
+        let index = (timestamp % state.participants.len() as u64) as usize;
+        // Iterate over the participants to find the winner at the specified index
+        let winner = state.participants.iter().nth(index).cloned();
+        // Remove the winner from the set of participants
+        if let Some(winner_address) = winner {
+            state.participants.remove(&winner_address);
+        }
         winner
     } else {
         None
